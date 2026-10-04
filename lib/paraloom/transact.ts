@@ -287,7 +287,9 @@ export async function submitTransact(
   // SPL settlement (#779): the mint being spent, 32-byte hex. Omitted for a
   // native-SOL spend; when present the node settles via transact_spl and
   // `recipientHex` is the recipient token account.
-  mintHex?: string
+  mintHex?: string,
+  // Token-2022 program resolution (#862): 32-byte hex of the token program.
+  tokenProgramHex?: string
 ): Promise<TransactSubmission> {
   const bundle = JSON.parse(proofBundleJson)
   const body: Record<string, unknown> = {
@@ -300,6 +302,7 @@ export async function submitTransact(
     ciphertexts
   }
   if (mintHex) body.mint = mintHex
+  if (tokenProgramHex) body.token_program = tokenProgramHex
   const headers: Record<string, string> = { "Content-Type": "application/json" }
   if (ingressToken) headers["Authorization"] = `Bearer ${ingressToken}`
   const res = await fetch(`${TRANSACT_INGRESS_URL}/transact/submit`, {

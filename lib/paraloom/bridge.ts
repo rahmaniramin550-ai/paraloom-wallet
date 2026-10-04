@@ -22,7 +22,8 @@ import {
   MERKLE_TREE_SEED,
   PROGRAM_ID,
   RPC_URLS,
-  TOKEN_PROGRAM_ID
+  TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID
 } from "./constants"
 
 export type Network = "mainnet-beta" | "devnet"
@@ -153,6 +154,25 @@ export function associatedTokenAddress(
     [owner.toBytes(), tokenProgram.toBytes(), mint.toBytes()],
     new PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID)
   )[0]
+}
+
+/**
+ * Dynamically resolves whether a mint is owned by TOKEN_2022_PROGRAM_ID or
+ * defaults to classic TOKEN_PROGRAM_ID (#862).
+ */
+export async function resolveTokenProgram(
+  connection: Connection,
+  mint: PublicKey
+): Promise<PublicKey> {
+  try {
+    const info = await connection.getAccountInfo(mint)
+    if (info && info.owner.toBase58() === TOKEN_2022_PROGRAM_ID) {
+      return new PublicKey(TOKEN_2022_PROGRAM_ID)
+    }
+  } catch {
+    // on network or RPC errors, fall back to classic program
+  }
+  return new PublicKey(TOKEN_PROGRAM_ID)
 }
 
 // Layout: DEPOSIT_NOTE_SPL discriminator (8) | amount u64 LE (8) | pubkey (32) |

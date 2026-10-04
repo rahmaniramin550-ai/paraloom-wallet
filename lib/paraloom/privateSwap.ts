@@ -26,7 +26,7 @@ import {
 
 import { assetIdForMint } from "~lib/prover"
 
-import { associatedTokenAddress, createTokenAccount, depositSpl } from "./bridge"
+import { associatedTokenAddress, createTokenAccount, depositSpl, resolveTokenProgram } from "./bridge"
 import { SWAP_ROUTER_URL } from "./constants"
 import type { ShieldedNote } from "./notes"
 import { saveSwapOutput } from "./swapOutputs"
@@ -228,7 +228,8 @@ async function reshieldToken(
 ): Promise<ReshieldedNote | undefined> {
   try {
     const mint = new PublicKey(outputMint)
-    const ata = associatedTokenAddress(fresh.publicKey, mint)
+    const tokenProgram = await resolveTokenProgram(connection, mint)
+    const ata = associatedTokenAddress(fresh.publicKey, mint, tokenProgram)
     const bal = await connection.getTokenAccountBalance(ata)
     const tokenAmount = BigInt(bal.value.amount)
     if (tokenAmount <= 0n) return undefined
@@ -243,7 +244,7 @@ async function reshieldToken(
       mint,
       tokenAmount,
       assetId,
-      undefined,
+      tokenProgram,
       // onSubmitted: note is now known + on-chain; persist immediately.
       async (r) => {
         if (persistNote) {
@@ -495,9 +496,10 @@ export async function privateSwapFromToken(
   if (params.amountTokenUnits <= 0n) throw new Error("amount must be > 0")
 
   const inputMintPk = new PublicKey(params.inputMint)
+  const inputTokenProgram = await resolveTokenProgram(connection, inputMintPk)
   const fresh = Keypair.generate()
   const freshHex = Buffer.from(fresh.publicKey.toBytes()).toString("hex")
-  const ata = associatedTokenAddress(fresh.publicKey, inputMintPk)
+  const ata = associatedTokenAddress(fresh.publicKey, inputMintPk, inputTokenProgram)
 
   // Persist the fresh key up front — the gas SOL, the withdrawn token, and the
   // swapped output all live at this address and are spendable only with this key.
@@ -542,7 +544,7 @@ export async function privateSwapFromToken(
 
   // 2. Create the input-mint ATA at the fresh address (paid from the gas SOL).
   //    The on-chain transact_spl withdraw transfers into an EXISTING account.
-  await createTokenAccount(connection, fresh, fresh.publicKey, inputMintPk)
+  await createTokenAccount(connection, fresh, fresh.publicKey, inputMintPk, inputTokenProgram)
 
   // 3. Withdraw the shielded token note(s) INTO that ATA — the circuit recipient
   //    is the token account, not the wallet address. The token notes are marked

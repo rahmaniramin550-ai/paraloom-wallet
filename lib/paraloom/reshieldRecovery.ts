@@ -9,8 +9,10 @@ import { Connection, Keypair, PublicKey } from "@solana/web3.js"
 import {
   associatedTokenAddress,
   depositSpl,
-  recoverReshieldedNote
+  recoverReshieldedNote,
+  resolveTokenProgram
 } from "~lib/paraloom/bridge"
+import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "~lib/paraloom/constants"
 import { addNote } from "~lib/paraloom/notes"
 import type { ReshieldedNote } from "~lib/paraloom/privateSwap"
 import { listSwapOutputs, saveSwapOutput } from "~lib/paraloom/swapOutputs"
@@ -77,8 +79,26 @@ export async function recoverReshields(
       const fresh = Keypair.fromSecretKey(
         Uint8Array.from(Buffer.from(o.freshSecretKeyHex, "hex"))
       )
-      const ata = associatedTokenAddress(fresh.publicKey, mint)
-      const bal = await connection.getTokenAccountBalance(ata).catch(() => null)
+      const tokenProgram = await resolveTokenProgram(connection, mint)
+      let ata = associatedTokenAddress(fresh.publicKey, mint, tokenProgram)
+      let bal = await connection.getTokenAccountBalance(ata).catch(() => null)
+      let activeProgram = tokenProgram
+
+      // Check alternate token program if primary ATA has no balance
+      if (!bal || BigInt(bal.value.amount) === 0n) {
+        const altProgramId =
+          tokenProgram.toBase58() === TOKEN_2022_PROGRAM_ID
+            ? new PublicKey(TOKEN_PROGRAM_ID)
+            : new PublicKey(TOKEN_2022_PROGRAM_ID)
+        const altAta = associatedTokenAddress(fresh.publicKey, mint, altProgramId)
+        const altBal = await connection.getTokenAccountBalance(altAta).catch(() => null)
+        if (altBal && BigInt(altBal.value.amount) > 0n) {
+          ata = altAta
+          bal = altBal
+          activeProgram = altProgramId
+        }
+      }
+
       const tokenAmount = bal ? BigInt(bal.value.amount) : 0n
       if (tokenAmount > 0n) {
         const assetId = await assetIdForMint(mintHex)
@@ -89,7 +109,7 @@ export async function recoverReshields(
           mint,
           tokenAmount,
           assetId,
-          undefined,
+          activeProgram,
           (note) =>
             persistReshieldedNote(shieldedAddress, {
               assetId,

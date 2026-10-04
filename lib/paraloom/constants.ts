@@ -37,6 +37,7 @@ export const ASSET_CONFIG_SEED = "asset_config"
 // SPL token programs, for building an SPL deposit's account list. The classic
 // program covers USDC; a Token-2022 mint passes its own program id.
 export const TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+export const TOKEN_2022_PROGRAM_ID = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
 export const ASSOCIATED_TOKEN_PROGRAM_ID = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 
 // RPC endpoints. No API key is stored in the extension. Rebuilding the v3 tree

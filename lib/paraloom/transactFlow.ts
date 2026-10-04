@@ -24,6 +24,7 @@ import {
 } from "./notes"
 import { confirmCommitmentInTree } from "./settlementConfirm"
 import { fetchV3Leaves, sendDepositNote, submitTransact } from "./transact"
+import { resolveTokenProgram } from "./bridge"
 
 function randomHex32(): string {
   const b = new Uint8Array(32)
@@ -216,9 +217,15 @@ export async function spendV3(
     throw new Error("all spent notes must share one asset")
   }
   const isSpl = assetIdHex !== NATIVE_ASSET_HEX
-  const mintHex = isSpl && inputs[0].mint ? new PublicKey(inputs[0].mint).toBuffer().toString("hex") : undefined
+  const mintPk = isSpl && inputs[0].mint ? new PublicKey(inputs[0].mint) : undefined
+  const mintHex = mintPk ? mintPk.toBuffer().toString("hex") : undefined
   if (isSpl && !mintHex) {
     throw new Error("a shielded SPL note must carry its mint to be spent")
+  }
+  let tokenProgramHex: string | undefined
+  if (isSpl && mintPk) {
+    const tokenProg = await resolveTokenProgram(connection, mintPk)
+    tokenProgramHex = tokenProg.toBuffer().toString("hex")
   }
   const noteCommitment = (amount: bigint, pubkeyHex: string, blindingHex: string) =>
     isSpl
@@ -334,7 +341,8 @@ export async function spendV3(
     bundle,
     ciphertexts,
     opts.ingressToken,
-    mintHex
+    mintHex,
+    tokenProgramHex
   )
 
   // Wait until the spend actually settles before touching local bookkeeping.
